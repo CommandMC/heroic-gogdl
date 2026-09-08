@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 
+from contextlib import suppress
 from ctypes import cdll
 
 from gogdl.dl.dl_utils import get_case_insensitive_name
@@ -284,21 +285,19 @@ def launch(arguments, unknown_args):
     sys.exit(status)
 
 
-def get_preferred_task(info, index):
-    primaryTask = None
-    for task in info["playTasks"]:
-        if task.get("isPrimary") == True:
-            primaryTask = task
-            break
-    if index is None:
-        return primaryTask
-    indexI = int(index)
-    if len(info["playTasks"]) > indexI:
-        return info["playTasks"][indexI]
-    
-    return primaryTask
-
-
+def get_preferred_task(info: dict, preferred_index: int | None) -> dict:
+    # First, try the preferred index
+    if preferred_index is not None:
+        with suppress(IndexError):
+            return info["playTasks"][preferred_index]
+    # Then, find the primary one
+    primary_task = next((
+        p for p in info["playTasks"] if p.get("isPrimary")
+    ), None)
+    if primary_task is not None:
+        return primary_task
+    # If all else fails, return the first one
+    return info["playTasks"][0]
 
 
 def load_game_info(path, id, platform):
