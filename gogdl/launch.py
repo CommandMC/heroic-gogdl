@@ -10,6 +10,7 @@ import time
 
 from contextlib import suppress
 from ctypes import cdll
+from typing import Literal
 
 from gogdl.dl.dl_utils import get_case_insensitive_name
 from gogdl.process import Process
@@ -300,24 +301,17 @@ def get_preferred_task(info: dict, preferred_index: int | None) -> dict:
     return info["playTasks"][0]
 
 
-def load_game_info(path, id, platform):
+def load_game_info(path, id, platform: Literal['windows', 'osx', 'linux']) -> dict | str:
     filename = f"goggame-{id}.info"
-    abs_path = (
-        (
-            os.path.join(path, filename)
-            if platform == "windows"
-            else os.path.join(path, "start.sh")
-        )
-        if platform != "osx"
-        else os.path.join(path, "Contents", "Resources", filename)
-    )
+    match platform:
+        case 'windows':
+            abs_path = os.path.join(path, filename)
+        case 'osx':
+            abs_path = os.path.join(path, "Contents", "Resources", filename)
+        case 'linux':
+            # Linux games don't have a .info file. Just return the path to its entry point
+            return os.path.join(path, "start.sh")
     if not os.path.isfile(abs_path):
         sys.exit(1)
-    if platform == "linux":
-        return abs_path
     with open(abs_path) as f:
-        data = f.read()
-        f.close()
-        return json.loads(data)
-
-
+        return json.load(f)
