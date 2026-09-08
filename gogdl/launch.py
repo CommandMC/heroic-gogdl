@@ -1,15 +1,17 @@
 import configparser
-import os
 import json
-import sys
-import subprocess
-import time
-from gogdl.dl.dl_utils import get_case_insensitive_name
-from ctypes import *
-from gogdl.process import Process
-import signal
-import shutil
+import os
 import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+from ctypes import cdll
+
+from gogdl.dl.dl_utils import get_case_insensitive_name
+from gogdl.process import Process
 
 class NoMoreChildren(Exception):
     pass
