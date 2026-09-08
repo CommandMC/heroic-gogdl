@@ -13,6 +13,7 @@ from ctypes import cdll
 from typing import Literal
 
 from gogdl.dl.dl_utils import get_case_insensitive_name
+from gogdl.models import InfoEntry, FileTask, URLTask
 from gogdl.process import Process
 
 class NoMoreChildren(Exception):
@@ -73,7 +74,7 @@ def launch(arguments, unknown_args: list[str]):
     command: list[str] = list()
     working_dir = arguments.path
     heroic_exe_wrapper = os.environ.get("HEROIC_GOGDL_WRAPPER_EXE")
-    if type(info) != str:
+    if isinstance(info, InfoEntry):
         if sys.platform != "win32":
             if not arguments.dont_use_wine and arguments.platform != unified_platform[sys.platform]:
                 if arguments.wine_prefix:
@@ -81,22 +82,20 @@ def launch(arguments, unknown_args: list[str]):
                 wrapper.append(arguments.wine)
 
         primary_task = get_preferred_task(info, arguments.preferred_task)
-        launch_arguments = primary_task.get("arguments")
-        compatibility_flags = primary_task.get("compatibilityFlags")
-        executable = os.path.join(arguments.path, primary_task["path"])
-        if arguments.platform == "linux":
-            executable = os.path.join(arguments.path, "game", primary_task["path"])
-        if launch_arguments is None:
-            launch_arguments = []
-        if type(launch_arguments) == str:
-            launch_arguments = launch_arguments.replace('\\', '/')
-            launch_arguments = shlex.split(launch_arguments)
-        if compatibility_flags is None:
-            compatibility_flags = []
+        if not isinstance(primary_task, FileTask):
+            raise RuntimeError(f'Tried to launch a non-FileTask task "{primary_task.name}"')
 
-        relative_working_dir = (
-            primary_task["workingDir"] if primary_task.get("workingDir") else ""
+        launch_arguments: list[str] = (
+            shlex.split(primary_task.arguments.replace('\\', '/'))
+            if primary_task.arguments is not None
+            else []
         )
+
+        executable = os.path.join(arguments.path, primary_task.path)
+        if arguments.platform == "linux":
+            executable = os.path.join(arguments.path, "game", primary_task.path)
+
+        relative_working_dir = primary_task.workingDir
         if sys.platform != "win32":
             relative_working_dir = relative_working_dir.replace("\\", os.sep)
             executable = executable.replace("\\", os.sep)
@@ -272,22 +271,22 @@ def launch(arguments, unknown_args: list[str]):
     sys.exit(status)
 
 
-def get_preferred_task(info: dict, preferred_index: int | None) -> dict:
+def get_preferred_task(info: InfoEntry, preferred_index: int | None) -> FileTask | URLTask:
     # First, try the preferred index
     if preferred_index is not None:
         with suppress(IndexError):
-            return info["playTasks"][preferred_index]
+            return info.playTasks[preferred_index]
     # Then, find the primary one
     primary_task = next((
-        p for p in info["playTasks"] if p.get("isPrimary")
+        p for p in info.playTasks if p.isPrimary
     ), None)
     if primary_task is not None:
         return primary_task
     # If all else fails, return the first one
-    return info["playTasks"][0]
+    return info.playTasks[0]
 
 
-def load_game_info(path, id, platform: Literal['windows', 'osx', 'linux']) -> dict | str:
+def load_game_info(path, id, platform: Literal['windows', 'osx', 'linux']) -> InfoEntry | str:
     filename = f"goggame-{id}.info"
     match platform:
         case 'windows':
@@ -300,4 +299,4 @@ def load_game_info(path, id, platform: Literal['windows', 'osx', 'linux']) -> di
     if not os.path.isfile(abs_path):
         sys.exit(1)
     with open(abs_path) as f:
-        return json.load(f)
+        return InfoEntry.from_dict(json.load(f))
