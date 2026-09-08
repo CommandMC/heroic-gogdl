@@ -60,7 +60,7 @@ def get_app_bundle_command(id: str) -> list[str]:
     return []
 
 # Supports launching linux builds
-def launch(arguments, unknown_args):
+def launch(arguments, unknown_args: list[str]):
     # print(arguments)
     info = load_game_info(arguments.path, arguments.id, arguments.platform)
 
@@ -70,10 +70,9 @@ def launch(arguments, unknown_args):
     envvars = {}
 
     unified_platform = {"win32": "windows", "darwin": "osx", "linux": "linux"}
-    command = list()
+    command: list[str] = list()
     working_dir = arguments.path
     heroic_exe_wrapper = os.environ.get("HEROIC_GOGDL_WRAPPER_EXE")
-    # If type is a string we know it's a path to start.sh on linux
     if type(info) != str:
         if sys.platform != "win32":
             if not arguments.dont_use_wine and arguments.platform != unified_platform[sys.platform]:
@@ -110,7 +109,7 @@ def launch(arguments, unknown_args):
             working_dir = get_case_insensitive_name(working_dir)
 
         os.chdir(working_dir)
-        
+
         if sys.platform != "win32" and arguments.platform == 'windows' and not arguments.override_exe:
             if "scummvm.exe" in executable.lower():
                 flatpak_scummvm = get_flatpak_command("org.scummvm.ScummVM")
@@ -118,7 +117,7 @@ def launch(arguments, unknown_args):
                 native_scummvm = shutil.which("scummvm")
                 if native_scummvm:
                     native_scummvm = [native_scummvm]
-            
+
                 native_runner = flatpak_scummvm or bundle_scummvm or native_scummvm
                 if native_runner:
                     wrapper = native_runner
@@ -155,36 +154,23 @@ def launch(arguments, unknown_args):
                 if native_runner:
                     wrapper = native_runner
                     executable = None
-
-        if len(wrapper) > 0 and wrapper[0] is not None:
-            command.extend(wrapper)
-
-        if heroic_exe_wrapper:
-            command.append(heroic_exe_wrapper.strip())
-
-        if arguments.override_exe:
-            command.append(arguments.override_exe)
-            working_dir = os.path.split(arguments.override_exe)[0]
-            if not os.path.exists(working_dir):
-                working_dir = get_case_insensitive_name(working_dir)
-        elif executable:
-            command.append(executable)
-        command.extend(launch_arguments)
     else:
-        if len(wrapper) > 0 and wrapper[0] is not None:
-            command.extend(wrapper)
+        # We have a `str` info -> we're on linux and `info` is the path to `start.sh`
+        executable = info
 
-        if heroic_exe_wrapper:
-            command.append(heroic_exe_wrapper.strip())
+    if len(wrapper) > 0 and wrapper[0] is not None:
+        command.extend(wrapper)
 
-        if arguments.override_exe:
-            command.append(arguments.override_exe)
-            working_dir = os.path.split(arguments.override_exe)[0]
-            # Handle case sensitive file systems
-            if not os.path.exists(working_dir):
-                working_dir = get_case_insensitive_name(working_dir)
-        else:
-            command.append(info)
+    if heroic_exe_wrapper:
+        command.append(heroic_exe_wrapper.strip())
+
+    if arguments.override_exe:
+        command.append(arguments.override_exe)
+        working_dir = os.path.split(arguments.override_exe)[0]
+        if not os.path.exists(working_dir):
+            working_dir = get_case_insensitive_name(working_dir)
+    elif executable:
+        command.append(executable)
 
     os.chdir(working_dir)
     command.extend(unknown_args)
